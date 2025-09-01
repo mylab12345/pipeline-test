@@ -1,4 +1,4 @@
-// Define the URL of the Artifactory registry
+// Define the Artifactory base URL
 def registry = 'https://trialvvnuv3.jfrog.io/artifactory'
 
 pipeline {
@@ -10,23 +10,32 @@ pipeline {
     }
 
     stages {
+        stage("Checkout") {
+            steps {
+                echo "----------- SCM Checkout Started ----------"
+                checkout scm
+                echo "----------- SCM Checkout Completed ----------"
+            }
+        }
+
         stage("Build") {
             steps {
-                echo "----------- build started ----------"
-                sh 'mvn clean deploy -DskipTests'
-                echo "----------- build completed ----------"
+                echo "----------- Build Started ----------"
+                // Only build and package (no deploy from Maven)
+                sh 'mvn clean package -DskipTests'
+                echo "----------- Build Completed ----------"
             }
         }
 
         stage("Test") {
             steps {
-                echo "----------- unit test started ----------"
+                echo "----------- Unit Tests Started ----------"
                 sh 'mvn test jacoco:report'
-                echo "----------- unit test completed ----------"
+                echo "----------- Unit Tests Completed ----------"
             }
         }
 
-        stage("SonarQube analysis") {
+        stage("SonarQube Analysis") {
             steps {
                 withSonarQubeEnv('keshav-sonarqube-server') {
                     withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
@@ -53,13 +62,13 @@ pipeline {
                     // Build properties
                     def properties = "buildid=${env.BUILD_ID},commitid=${GIT_COMMIT}"
 
-                    // Upload spec (use repo name, not full URL)
+                    // Upload spec (upload jar from target dir to repo)
                     def uploadSpec = """{
                         "files": [
                             {
-                                "pattern": "jarstaging/(*)",
+                                "pattern": "target/*.jar",
                                 "target": "sample-java-libs-release/",
-                                "flat": false,
+                                "flat": true,
                                 "props": "${properties}",
                                 "exclusions": [ "*.sha1", "*.md5" ]
                             }
