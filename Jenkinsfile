@@ -1,5 +1,5 @@
 // Define the URL of the Artifactory registry
-def registry = 'https://trialvvnuv3.jfrog.io/'
+def registry = 'https://trialvvnuv3.jfrog.io/artifactory'
 
 pipeline {
     agent any
@@ -10,7 +10,7 @@ pipeline {
     }
 
     stages {
-        stage("build") {
+        stage("Build") {
             steps {
                 echo "----------- build started ----------"
                 sh 'mvn clean deploy -DskipTests'
@@ -18,7 +18,7 @@ pipeline {
             }
         }
 
-        stage("test") {
+        stage("Test") {
             steps {
                 echo "----------- unit test started ----------"
                 sh 'mvn test jacoco:report'
@@ -43,22 +43,33 @@ pipeline {
             steps {
                 script {
                     echo '<--------------- Jar Publish Started --------------->'
-                    def server = Artifactory.newServer url: registry + "/artifactory", credentialsId: "artifact-cred"
+
+                    // Define Artifactory server
+                    def server = Artifactory.newServer(
+                        url: registry,
+                        credentialsId: "artifact-cred"
+                    )
+
+                    // Build properties
                     def properties = "buildid=${env.BUILD_ID},commitid=${GIT_COMMIT}"
+
+                    // Upload spec (use repo name, not full URL)
                     def uploadSpec = """{
-                          "files": [
+                        "files": [
                             {
-                              "pattern": "jarstaging/(*)",
-                              "target": "https://trialvvnuv3.jfrog.io/artifactory/sample-java-libs-release/",
-                              "flat": "false",
-                              "props": "${properties}",
-                              "exclusions": [ "*.sha1", "*.md5"]
+                                "pattern": "jarstaging/(*)",
+                                "target": "sample-java-libs-release/",
+                                "flat": false,
+                                "props": "${properties}",
+                                "exclusions": [ "*.sha1", "*.md5" ]
                             }
-                         ]
-                     }"""
+                        ]
+                    }"""
+
                     def buildInfo = server.upload(uploadSpec)
-                    buildInfo.env.collect()
+                    buildInfo.env.capture = true
                     server.publishBuildInfo(buildInfo)
+
                     echo '<--------------- Jar Publish Ended --------------->'
                 }
             }
